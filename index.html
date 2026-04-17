@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html>
+<head>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono&display=swap" rel="stylesheet">
+<meta charset="UTF-8">
+<title>Private Brain V4 (Styled)</title>
+<style>
+:root{
+ --sapphire:#3C507D;
+ --royal:#112250;
+ --gold:#E0C58F;
+ --light:#F5F0E9;
+ --shell:#D9CBC2;
+}
+body { font-family: 'IBM Plex Mono', monospace; margin: 0; background: var(--royal); color: var(--light); }
+.sidebar { width: 260px; background: var(--royal); position: fixed; height: 100%; padding: 20px; }
+.sidebar h2 { color: var(--gold); }
+.sidebar button { width: 100%; margin: 6px 0; padding: 10px; border-radius: 5px; border: none; background: rgba(255,255,255,0.1); color: white; cursor: pointer; text-align:left; }
+.sidebar button:hover { background: var(--royal); }
+.content { margin-left: 280px; padding: 30px; }
+.section { display: none; background: var(--light); color:black; padding: 25px; border-radius: 14px; }
+textarea, input { width: 100%; padding: 10px; margin: 8px 0; border-radius: 8px; border: 1px solid #ccc; }
+.btn { padding: 6px 12px; border-radius: 8px; border: none; background: var(--royal); color: white; cursor: pointer; margin-right:5px; }
+.noteItem { background: var(--shell); padding: 10px; margin: 6px 0; border-radius: 8px; }
+canvas { border:2px solid var(--royal); border-radius:10px; }
+</style>
+</head>
+<body>
+
+<div class="sidebar">
+  <h2>🧠 Private Brain</h2>
+  <button onclick="show('dashboard')">📊 Dashboard</button>
+  <button onclick="show('study')">📚 Study</button>
+  <button onclick="show('knowledge')">🧠 Knowledge</button>
+  <button onclick="show('ideas')">💡 Ideas</button>
+  <button onclick="show('writing')">✍️ Writing</button>
+  <button onclick="show('logs')">🗂 Logs</button>
+  <button onclick="show('whiteboard')">🎨 Whiteboard</button>
+  <hr>
+  <button onclick="backupData()">💾 Backup</button>
+  <button onclick="restoreData()">📥 Restore</button>
+  <input type="file" id="fileInput" style="display:none">
+</div>
+
+<div class="content">
+
+<div id="dashboard" class="section">
+<h2>📊 Dashboard</h2>
+<p>Study Sessions: <span id="studyCount"></span></p>
+<p>Ideas: <span id="ideaCount"></span></p>
+<p>Notes: <span id="noteCount"></span></p>
+</div>
+
+<div id="study" class="section">
+<h2>📚 Study Log</h2>
+<input id="subject" placeholder="Subject">
+<textarea id="studynotes"></textarea>
+<button class="btn" onclick="addStudy()">Add</button>
+<div id="studyList"></div>
+</div>
+
+<div id="knowledge" class="section">
+<h2>🧠 Knowledge</h2>
+<input id="noteTitle" placeholder="Title">
+<textarea id="noteContent"></textarea>
+<button class="btn" onclick="saveNote()">Save</button>
+<div id="notesList"></div>
+</div>
+
+<div id="ideas" class="section">
+<h2>💡 Ideas</h2>
+<input id="searchIdeasInput" placeholder="Search ideas..." oninput="searchIdeas()">
+<textarea id="ideaText"></textarea>
+<button class="btn" onclick="addIdea()">Save</button>
+<button class="btn" onclick="downloadIdeas()">Download</button>
+<div id="ideaList"></div>
+</div>
+
+<div id="writing" class="section">
+<h2>✍️ Writing</h2>
+<input id="title" placeholder="Title">
+<textarea id="draft" rows="10"></textarea>
+<p id="wordCount"></p>
+<button class="btn" onclick="saveWriting()">Save</button>
+<button class="btn" onclick="downloadWriting()">Download</button>
+</div>
+
+<div id="logs" class="section">
+<h2>🗂 Saved Writings</h2>
+<div id="writingList"></div>
+</div>
+
+<div id="whiteboard" class="section">
+<h2>🎨 Whiteboard</h2>
+<canvas id="board" width="800" height="400"></canvas><br>
+<button class="btn" onclick="clearBoard()">Clear</button>
+<button class="btn" onclick="saveBoard()">Save</button>
+<div id="boardList"></div>
+</div>
+
+</div>
+
+<script>
+let studyData=[], notes=[], ideas=JSON.parse(localStorage.getItem('ideas')||'[]');
+let writings = JSON.parse(localStorage.getItem('writings')||'[]');
+let boards = JSON.parse(localStorage.getItem('boards')||'[]');
+
+function show(id){
+ document.querySelectorAll('.section').forEach(s=>s.style.display='none');
+ document.getElementById(id).style.display='block';
+}
+
+function addStudy(){ const s=subject.value; if(!s)return; studyData.push({s}); render(); }
+function deleteStudy(i){ studyData.splice(i,1); render(); }
+function editStudy(i){ let t=prompt('Edit',studyData[i].s); if(t!==null){studyData[i].s=t; render();}}
+
+function saveNote(){ const t=noteTitle.value; if(!t)return; notes.push({t}); render(); }
+function deleteNote(i){ notes.splice(i,1); render(); }
+function editNote(i){ let t=prompt('Edit',notes[i].t); if(t!==null){notes[i].t=t; render();}}
+
+function addIdea(){ if(!ideaText.value)return; ideas.push({i:ideaText.value}); localStorage.setItem('ideas',JSON.stringify(ideas)); render(); }
+function deleteIdea(i){ ideas.splice(i,1); localStorage.setItem('ideas',JSON.stringify(ideas)); render(); }
+function editIdea(i){ let t=prompt('Edit',ideas[i].i); if(t!==null){ideas[i].i=t; localStorage.setItem('ideas',JSON.stringify(ideas)); render();}}
+
+function searchIdeas(){
+ const q = searchIdeasInput.value.toLowerCase();
+ const filtered = ideas.map((item,index)=>({...item,index})).filter(x=>x.i.toLowerCase().includes(q));
+ ideaList.innerHTML = filtered.map(x=>`<div class='noteItem'>${x.i}<br>
+ <button class='btn' onclick='editIdea(${x.index})'>Edit</button>
+ <button class='btn' onclick='deleteIdea(${x.index})'>Delete</button></div>`).join('');
+}
+
+function render(){
+ studyList.innerHTML=studyData.map((x,i)=>`<div class='noteItem'>${x.s}<br><button class='btn' onclick='editStudy(${i})'>Edit</button><button class='btn' onclick='deleteStudy(${i})'>Delete</button></div>`).join('');
+ notesList.innerHTML=notes.map((x,i)=>`<div class='noteItem'>${x.t}<br><button class='btn' onclick='editNote(${i})'>Edit</button><button class='btn' onclick='deleteNote(${i})'>Delete</button></div>`).join('');
+ ideaList.innerHTML=ideas.map((x,i)=>`<div class='noteItem'>${x.i}<br><button class='btn' onclick='editIdea(${i})'>Edit</button><button class='btn' onclick='deleteIdea(${i})'>Delete</button></div>`).join('');
+ studyCount.innerText=studyData.length;
+ noteCount.innerText=notes.length;
+ ideaCount.innerText=ideas.length;
+}
+
+setInterval(()=>{
+ localStorage.setItem('draft',draft.value);
+ wordCount.innerText = 'Words: '+(draft.value.split(/\\s+/).filter(Boolean).length);
+},2000);
+
+draft.value = localStorage.getItem('draft')||'';
+
+function saveWriting(){
+ const t=title.value;
+ const d=draft.value;
+ if(!t||!d) return;
+ writings.push({title:t,content:d,date:new Date().toLocaleString()});
+ localStorage.setItem('writings',JSON.stringify(writings));
+ renderWritings();
+}
+
+function deleteWriting(i){ writings.splice(i,1); localStorage.setItem('writings',JSON.stringify(writings)); renderWritings(); }
+function editWriting(i){ let nt=prompt('Title',writings[i].title); let nc=prompt('Content',writings[i].content); if(nt&&nc){writings[i].title=nt; writings[i].content=nc; localStorage.setItem('writings',JSON.stringify(writings)); renderWritings();}}
+
+function renderWritings(){
+ writingList.innerHTML=writings.map((w,i)=>`<div class='noteItem'><b>${w.title}</b><br>${w.date}<br><button class='btn' onclick='editWriting(${i})'>Edit</button><button class='btn' onclick='deleteWriting(${i})'>Delete</button></div>`).join('');
+}
+
+function downloadWriting(){
+ const blob=new Blob([draft.value],{type:'text/plain'});
+ const a=document.createElement('a');
+ a.href=URL.createObjectURL(blob);
+ a.download='writing.txt';
+ a.click();
+}
+
+const canvas=document.getElementById('board');
+const ctx=canvas.getContext('2d');
+let drawing=false;
+canvas.onmousedown=()=>drawing=true;
+canvas.onmouseup=()=>{drawing=false; ctx.beginPath();};
+canvas.onmousemove=(e)=>{ if(!drawing)return; ctx.lineTo(e.offsetX,e.offsetY); ctx.stroke(); ctx.beginPath(); ctx.moveTo(e.offsetX,e.offsetY);} ;
+
+function clearBoard(){ ctx.clearRect(0,0,canvas.width,canvas.height); }
+function saveBoard(){ boards.push(canvas.toDataURL()); localStorage.setItem('boards',JSON.stringify(boards)); renderBoards(); }
+function deleteBoard(i){ boards.splice(i,1); localStorage.setItem('boards',JSON.stringify(boards)); renderBoards(); }
+function renderBoards(){ boardList.innerHTML=boards.map((b,i)=>`<img src='${b}' width='120'><button onclick='deleteBoard(${i})'>❌</button>`).join(''); }
+
+function backupData(){
+ const data={ideas,writings,boards};
+ const blob=new Blob([JSON.stringify(data)],{type:'application/json'});
+ const a=document.createElement('a');
+ a.href=URL.createObjectURL(blob);
+ a.download='backup.json';
+ a.click();
+}
+
+function restoreData(){ fileInput.click(); }
+fileInput.onchange=(e)=>{
+ const r=new FileReader();
+ r.onload=()=>{
+ const d=JSON.parse(r.result);
+ ideas=d.ideas||[];
+ writings=d.writings||[];
+ boards=d.boards||[];
+ localStorage.setItem('ideas',JSON.stringify(ideas));
+ localStorage.setItem('writings',JSON.stringify(writings));
+ localStorage.setItem('boards',JSON.stringify(boards));
+ render(); renderWritings(); renderBoards();
+ };
+ r.readAsText(e.target.files[0]);
+}
+
+render(); renderWritings(); renderBoards(); show('dashboard');
+</script>
+
+</body>
+</html>
